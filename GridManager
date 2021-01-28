@@ -1,0 +1,557 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+[RequireComponent(typeof(GridShower))]
+public class GridManager : MonoBehaviour
+{
+    //Manager inst
+
+    public static GridManager Inst
+
+    {
+        get{
+            if (_inst == null)
+                return new GameObject("GridManager").AddComponent<GridManager>();
+            return _inst;
+        }
+    }
+    
+    private static GridManager _inst;
+    private GridShower _gridShower;
+
+    public GameObject _baseTile;
+
+    public GameObject _normalTiles;
+    public GameObject _staticTiles;
+
+    public List <CustomTile> _tiles = new List<CustomTile>();
+
+    public Vector2 _gridSize;
+
+    public float _tileMoveTime;
+    private float _elapsedTileTime = 0;
+    public List <Vector2> _currentlyOccupied = new List<Vector2>();
+    public List <Vector2> _lastOccupied = new List<Vector2>();
+    public List <Vector2> _goingTo = new List<Vector2>();
+
+    void Awake()
+    {
+        if (_inst != null && _inst != this)
+        {
+            Destroy(this.gameObject);
+            return;
+        }
+
+        _inst = this;
+
+        _gridShower = GetComponent<GridShower>();
+
+        FillList();
+    }
+
+    private void FillList()
+    {
+        for(int i = 0; i < _normalTiles.transform.childCount; i ++)
+        {
+            _tiles.Add(_normalTiles.transform.GetChild(i).GetComponent<BaseTile>());
+        }
+
+        for (int i = 0; i < _staticTiles.transform.childCount; i ++)
+        {
+            _tiles.Add(_staticTiles.transform.GetChild(i).GetComponent<StaticTile>());
+        }
+    }
+
+    private List <Vector2> OcuppiedTiles()
+    {
+        List <Vector2> positions = new List<Vector2>();
+
+        for (int i = 0; i < _tiles.Count; i ++)
+        {
+            positions.Add((_tiles[i].transform.position));
+        }
+
+        return positions;
+    }
+
+    public void ReSizeGrid(Vector2 gridSize)
+    {
+        _gridSize = gridSize;
+
+        _gridShower.ReSize(gridSize);
+    }
+
+    private void Update() 
+    {   
+        //if (Input.GetKeyDown(KeyCode.I))
+        //{
+            //SpawnRandomTile();
+        //}
+
+        _currentlyOccupied = OcuppiedTiles();
+
+        if (_lastOccupied != _currentlyOccupied)
+        {
+            for (int i = 0; i < _tiles.Count; i ++)
+            {
+                _tiles[i].OccupiedTiles(_currentlyOccupied);
+            }
+
+            _lastOccupied = _currentlyOccupied;
+        }
+
+        //Tile movement
+
+        if (_elapsedTileTime >= _tileMoveTime)
+        {
+            //Move
+
+            MoveWorld();
+            _elapsedTileTime = 0f;
+
+        }
+
+        else 
+        {
+            _elapsedTileTime += Time.deltaTime;
+        }
+    }
+
+    public void MoveWorld()
+    {
+        _goingTo.Clear();
+        MoveTileTo();
+    }
+
+    public void MoveTileTo()
+    {
+        //Checking which tile to go
+
+        for (int o = 0; o < _tiles.Count; o ++)
+        {
+            bool up = true, down = true, right = true, left = true;
+
+            Vector2 goingRight = new Vector2 (_tiles[o].transform.position.x + ConstantManager.Inst.TileSpec, _tiles[o].transform.position.y);
+            Vector2 goingLeft = new Vector2 (_tiles[o].transform.position.x - ConstantManager.Inst.TileSpec, _tiles[o].transform.position.y);
+            Vector2 goingUp = new Vector2 (_tiles[o].transform.position.x, _tiles[o].transform.position.y + ConstantManager.Inst.TileSpec);
+            Vector2 goingDown = new Vector2 (_tiles[o].transform.position.x, _tiles[o].transform.position.y - ConstantManager.Inst.TileSpec);
+            
+            //Checking if the tile is empty
+
+            right = IsFree(goingRight);
+
+            left = IsFree(goingLeft);
+
+            up = IsFree(goingUp);
+
+            down = IsFree(goingDown);
+
+            //-------------------------------Choose direction 
+
+
+            int NumberOfDirs = 0; 
+            float dir = Random.value;
+            Vector2 _moveDir = Vector2.zero;
+
+            if (down)
+                NumberOfDirs += 1;
+
+            if (up)
+                NumberOfDirs += 1;
+
+            if (right)
+                NumberOfDirs += 1;
+                
+            if (left)
+                NumberOfDirs += 1;
+
+            if (NumberOfDirs == 1)
+            {
+                if (up)
+                    _moveDir.y = 1;
+                else if (down)
+                    _moveDir.y = -1;
+                else if (right)
+                    _moveDir.x = 1;
+                else
+                    _moveDir.x = -1;
+            }
+
+            else if (NumberOfDirs == 2)
+            {
+                if (up)
+                {
+                    if (down)
+                    {                    
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = -1;
+                        }  
+                    }
+                    else if (right)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = 1;
+                        }  
+                    }
+                    else if (left)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = -1;
+                        }  
+                    }
+                }
+                else if (down)
+                {
+                    if (up)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = 1;
+                        }  
+                    }
+                    else if (right)
+                    {                    
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = 1;
+                        }  
+                    }
+                    else if (left)
+                    {            
+                        if (dir <= .5)
+                        {
+                            _moveDir.y = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = -1;
+                        } 
+                    }
+                }
+                else if (right)
+                {
+                    if (up)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = 1;
+                        } 
+                    }
+                    else if (down)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = -1;
+                        } 
+                    }
+                    else if (left)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = 1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = -1;
+                        } 
+                    }
+                }
+                else if (left)
+                {
+                    if (up)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = 1;
+                        } 
+                    }
+                    else if (down)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.y = -1;
+                        } 
+                    }
+                    else if (right)
+                    {
+                        if (dir <= .5)
+                        {
+                            _moveDir.x = -1;
+                        }   
+                        
+                        else if(dir > .5)
+                        {
+                            _moveDir.x = 1;
+                        } 
+                    }
+                }
+        }
+
+        else if (NumberOfDirs == 3)
+        {
+            if (!up)
+            {
+                if (dir <= .333)
+                {
+                    _moveDir.y = -1;
+                }
+                else if (dir > .333 && dir < .666)
+                {
+                    _moveDir.x = 1;
+                }
+                else
+                {
+                    _moveDir.x = -1;
+                }
+            }
+            else if (!down)
+            {
+                if (dir <= .333)
+                {
+                    _moveDir.y = 1;
+                }
+                else if (dir > .333 && dir < .666)
+                {
+                    _moveDir.x = 1;
+                }
+                else
+                {
+                    _moveDir.x = -1;
+                }
+            }
+            else if (!right)
+            {
+                if (dir <= .333)
+                {
+                    _moveDir.y = -1;
+                }
+                else if (dir > .333 && dir < .666)
+                {
+                    _moveDir.y = 1;
+                }
+                else
+                {
+                    _moveDir.x = -1;
+                }
+            }
+            else if (!left)
+            {
+                if (dir <= .333)
+                {
+                    _moveDir.y = -1;
+                }
+                else if (dir > .333 && dir < .666)
+                {
+                    _moveDir.y = 1;
+                }
+                else
+                {
+                    _moveDir.x = 1;
+                }
+            }
+        }
+
+        else if (NumberOfDirs == 4)
+        {
+            if (dir <= .25)
+            {
+                _moveDir.x = -1;
+            }   
+            
+            else if(dir > .25 && dir <= .5)
+            {
+                _moveDir.x = 1;
+            }  
+            
+            else if (dir > .5 && dir <= .75)
+            {
+                _moveDir.y = 1;
+            }  
+            
+            else if (dir > .75)
+            {
+                _moveDir.y = -1;
+            }  
+        } 
+
+        Vector2 pos = new Vector2(_tiles[o].transform.position.x, _tiles[o].transform.position.y) + (_moveDir * ConstantManager.Inst.TileSpec);
+
+        //Excluding times that can't move
+
+        if (_tiles[o].gameObject.GetComponent<BaseTile>())
+        {
+            _goingTo.Add(pos);
+            _tiles[o].gameObject.GetComponent<BaseTile>().NormalMove(pos);
+        }
+        
+        }
+    }
+    
+    public Vector4 MapBoundaries()
+    {
+        Vector4 boundaries = new Vector4(_gridSize.x, -(_gridSize.x - 1), (_gridSize.y - 1), -_gridSize.y);
+
+        return boundaries;
+    }
+
+    public void SpawnTileFromEntitie(Vector2 pos)
+    {
+        //TODO Check tile type 
+
+        pos += new Vector2(ConstantManager.Inst._entitiesOffset.x, ConstantManager.Inst._entitiesOffset.y + 1);
+
+        if (IsFree(pos))
+        {
+            CreateTileTypeOf("Base", pos/ConstantManager.Inst.TileSpec);
+        }
+    }
+
+    public Vector2 ReturnATile()
+    {
+        bool free = false;
+        float rangeX = 0;
+        float rangeY = 0;
+
+        while (!free)
+        {
+            rangeX = Mathf.RoundToInt(Random.Range(MapBoundaries().y, MapBoundaries().x));
+            rangeY = Mathf.RoundToInt(Random.Range(MapBoundaries().w, MapBoundaries().z));
+
+            if (IsFree(new Vector2(rangeX, rangeY)))
+            {
+                free = true;
+            }
+        }
+
+        return new Vector2(rangeX, rangeY);
+    }
+
+    public Vector2 ReturnPos()
+    {
+        int xPos = Random.Range(Mathf.RoundToInt(MapBoundaries().x), Mathf.RoundToInt(MapBoundaries().y));
+        int yPos = Random.Range(Mathf.RoundToInt(MapBoundaries().z), Mathf.RoundToInt(MapBoundaries().w));
+
+        return new Vector2(xPos, yPos);
+    }
+
+    private void SpawnRandomTile()
+    {
+        //TODO Check tile type 
+
+        CreateTileTypeOf("Base", ReturnATile());
+    }
+
+    private void CreateTileTypeOf(string type, Vector2 pos)
+    {
+        GameObject tile = null;
+        Transform parent = null;  
+
+        if (type == "Base")   
+        {
+            tile = _baseTile;
+            parent = _normalTiles.transform;
+        }
+        
+        GameObject newTile = (GameObject)Instantiate(tile);
+
+        newTile.transform.position = new Vector2(pos.x * ConstantManager.Inst.TileSpec, pos.y * ConstantManager.Inst.TileSpec);
+        newTile.transform.SetParent(parent);
+        _tiles.Add(newTile.GetComponent<CustomTile>());
+    }
+
+    //Utility
+
+    private bool IsFree(Vector2 tile)
+    {
+        Vector2 gridTile = new Vector2(tile.x/ConstantManager.Inst.TileSpec, tile.y/ConstantManager.Inst.TileSpec);
+
+        bool free = true;
+        
+        //Check boundaries
+
+        if (gridTile.x > MapBoundaries().x || gridTile.x < MapBoundaries().y)
+        {
+            return free = false;
+        }
+
+        if (gridTile.y > MapBoundaries().z || gridTile.y < MapBoundaries().w)
+        {
+            return free = false;
+        }
+
+        //Check current tiles
+
+        for (int i = 0; i < _currentlyOccupied.Count; i++)
+        {
+            if (tile == _currentlyOccupied[i])
+            {
+                return free = false;
+            }
+        }
+
+        //Check movement tiles
+
+        _goingTo.Clear();
+
+        for (int i = 0; i < _goingTo.Count; i++)
+        {
+            if (tile == _goingTo[i])
+            {
+                return free = false;
+            }
+        }
+
+        return free;
+    }
+}
